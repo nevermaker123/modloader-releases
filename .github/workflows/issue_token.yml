@@ -10,11 +10,11 @@ on:
         description: 'Дней подписки'
         required: true
         default: '30'
+
 jobs:
   generate:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
       - name: Generate and Send Token
         env:
           PRIVATE_KEY_BASE64: ${{ secrets.PRIVATE_KEY_BASE64 }}
@@ -22,4 +22,27 @@ jobs:
           TG_CHAT_ID: ${{ secrets.TG_CHAT_ID }}
           USERNAME: ${{ github.event.inputs.username }}
           DAYS: ${{ github.event.inputs.days }}
-        run: node tools/gen_token.js
+        run: |
+          node -e '
+          const crypto = require("crypto");
+          async function main() {
+              const privDer = Buffer.from(process.env.PRIVATE_KEY_BASE64, "base64");
+              const privateKey = crypto.createPrivateKey({ key: privDer, format: "der", type: "pkcs8" });
+              const username = process.env.USERNAME;
+              const days = parseInt(process.env.DAYS, 10);
+              const expires = Math.floor(Date.now() / 1000) + (days * 86400);
+              const payload = `${username}|${expires}`;
+              const signature = crypto.sign("sha256", Buffer.from(payload), { key: privateKey, dsaEncoding: "ieee-p1363" });
+              const token = `${Buffer.from(payload).toString("base64url")}.${signature.toString("base64url")}`;
+              console.log("Токен: " + token);
+              const resp = await fetch(`https://api.telegram.org/bot${process.env.TG_BOT_TOKEN}/sendMessage`, {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({ chat_id: process.env.TG_CHAT_ID, text: `✅ Токен для ${username} на ${days} дней:\n\n\`${token}\``, parse_mode: "Markdown" })
+              });
+              const data = await resp.json();
+              if (resp.ok && data.ok) console.log("✅ Токен отправлен в Telegram!");
+              else console.error("❌ ОШИБКА ОТ TELEGRAM:", JSON.stringify(data));
+          }
+          main().catch(console.error);
+          '
