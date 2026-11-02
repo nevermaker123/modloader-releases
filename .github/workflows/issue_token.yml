@@ -1,0 +1,25 @@
+name: Issue Auth Token
+on:
+  workflow_dispatch:
+    inputs:
+      username:
+        description: 'Никнейм покупателя'
+        required: true
+        default: 'Player'
+      days:
+        description: 'Дней подписки'
+        required: true
+        default: '30'
+jobs:
+  generate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Generate and Send Token
+        env:
+          PRIVATE_KEY_BASE64: ${{ secrets.PRIVATE_KEY_BASE64 }}
+          TG_BOT_TOKEN: ${{ secrets.TG_BOT_TOKEN }}
+          TG_CHAT_ID: ${{ secrets.TG_CHAT_ID }}
+          USERNAME: ${{ github.event.inputs.username }}
+          DAYS: ${{ github.event.inputs.days }}
+        run: node tools/gen_token.js
